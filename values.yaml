@@ -1,0 +1,377 @@
+ 
+image:
+  registry: docker.io
+  repository: bitnami/rabbitmq
+  tag: 3.8.3-debian-10-r49
+  debug: false
+  pullPolicy: IfNotPresent
+
+rbacEnabled: true
+
+podManagementPolicy: OrderedReady
+
+## section of specific values for rabbitmq
+rabbitmq:
+
+  ## RabbitMQ application username
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  username: mindbox-test
+  existingPasswordSecret: rabbitmq-password
+  ## RabbitMQ application password
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  loadDefinition:
+    enabled: false
+#     secretName: rabbitmq-load-definition
+#   extraConfiguration: |-
+#     management.load_definitions = /app/load_definition.json
+  
+  logs: '-'
+
+  ## RabbitMQ Max File Descriptors
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ## ref: https://www.rabbitmq.com/install-debian.html#kernel-resource-limits
+  ##
+  setUlimitNofiles: true
+  ulimitNofiles: '65536'
+
+  ## Plugins to enable
+  plugins: "rabbitmq_management rabbitmq_peer_discovery_k8s rabbitmq_prometheus"
+
+
+  ## Clustering settings
+  clustering:
+    address_type: hostname
+    k8s_domain: cluster.local
+    ## Rebalance master for queues in cluster when new replica is created
+    ## ref: https://www.rabbitmq.com/rabbitmq-queues.8.html#rebalance
+    rebalance: true
+
+
+  ## environment variables to configure rabbitmq
+  ## ref: https://www.rabbitmq.com/configure.html#customise-environment
+  env: {}
+
+  ## Configuration file content: required cluster configuration
+  ## Do not override unless you know what you are doing. To add more configuration, use `extraConfiguration` of `advancedConfiguration` instead
+  configuration: |-
+    ## Clustering
+    cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+    cluster_formation.node_cleanup.interval = 10
+    cluster_formation.node_cleanup.only_log_warning = true
+    cluster_partition_handling = autoheal
+    # queue master locator
+    queue_master_locator=min-masters
+    # enable guest user
+    loopback_users.guest = false
+  ## Configuration file content: extra configuration
+  ## Use this instead of `configuration` to add more configuration
+  extraConfiguration: |-
+    disk_free_limit.relative = 1.5
+    
+  advancedConfiguration: |-
+  ## Enable encryption to rabbitmq
+  ## ref: https://www.rabbitmq.com/ssl.html
+  ##
+  tls:
+    enabled: false
+    failIfNoPeerCert: true
+    sslOptionsVerify: verify_peer
+    caCertificate: |-
+    serverCertificate: |-
+    serverKey: |-
+    # existingSecret: name-of-existing-secret-to-rabbitmq
+
+## Kubernetes service type
+service:
+  type: LoadBalancer
+  ## Node port
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  # nodePort: 30672
+
+  ## Set the LoadBalancerIP
+  ##
+  # loadBalancerIP:
+
+  ## Node port Tls
+  ##
+  # nodeTlsPort: 30671
+
+  ## Amqp port
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  port: 5672
+
+  ## Amqp Tls port
+  ##
+  tlsPort: 5671
+
+  ## Dist port
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  distPort: 25672
+
+  ## RabbitMQ Manager port
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  managerPort: 15672
+
+  ## Service labels
+  labels: {}
+
+  ## Service annotations
+  annotations: {}
+    # service.beta.kubernetes.io/aws-load-balancer-internal: 0.0.0.0/0
+
+# Additional pod labels to apply
+podLabels: {}
+
+## Pod Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+##
+securityContext:
+  enabled: true
+  fsGroup: 1001
+  runAsUser: 1001
+  extra: {}
+
+persistence:
+  ## this enables PVC templates that will create one per pod
+  enabled: true
+  storageClass: ""
+  # selector can be used to match an existing PersistentVolume
+#   selector:
+#     matchLabels:
+#       app: my-app
+  accessMode: ReadWriteOnce
+
+
+  # If you change this value, you might have to adjust `rabbitmq.diskFreeLimit` as well.
+  size: 10Gi
+
+  # persistence directory, maps to the rabbitmq data directory
+  path: /opt/rabbit-data
+
+## Configure resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+##
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 0.1
+
+networkPolicy:
+  ## Enable creation of NetworkPolicy resources. Only Ingress traffic is filtered for now.
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+  ##
+  enabled: false
+
+  ## The Policy model to apply. When set to false, only pods with the correct
+  ## client label will have network access to the port RabbitMQ is listening
+  ## on. When true, RabbitMQ will accept connections from any source
+  ## (with the correct destination port).
+  ##
+  allowExternal: true
+
+
+## Replica count, set to 3 to provide a default available cluster
+replicas: 3
+# rabbitmq.password: "$RABBITMQ_PASSWORD"
+# rabbitmq.erlangCookie: "$RABBITMQ_ERLANG_COOKIE"
+## Pod priority
+## https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+# priorityClassName: ""
+
+## updateStrategy for RabbitMQ statefulset
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+updateStrategy:
+  type: RollingUpdate
+
+## Node labels and tolerations for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#taints-and-tolerations-beta-feature
+nodeSelector:
+  beta.kubernetes.io/arch: amd64
+tolerations: []
+
+## Pod AntiAffinity is set to avoid two pods in the same node and increase performance
+## ref: https://github.com/bitnami/charts/issues/2189
+affinity: |
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app: {{ template "rabbitmq.name" . }}
+            release: {{ .Release.Name | quote }}
+        topologyKey: kubernetes.io/hostname
+
+## annotations for rabbitmq pods
+podAnnotations: {}
+
+## Configure the podDisruptionBudget
+podDisruptionBudget: {}
+maxUnavailable: 1
+minAvailable: 3
+
+## Configure the ingress resource that allows you to access the
+## Wordpress installation. Set up the URL
+## ref: http://kubernetes.io/docs/user-guide/ingress/
+##
+ingress:
+  ## Set to true to enable ingress record generation
+  enabled: false
+
+  ## The list of hostnames to be covered with this ingress record.
+  ## Most likely this will be just one host, but in the event more hosts are needed, this is an array
+  ## hostName: foo.bar.com
+  path: /
+
+  ## Set this to true in order to enable TLS on the ingress record
+  ## A side effect of this will be that the backend wordpress service will be connected at port 443
+  tls: true
+
+  ## If TLS is set to true, you must declare what secret will store the key/certificate for TLS
+  tlsSecret: myTlsSecret
+  ##
+  ## If tls is set to true, annotation ingress.kubernetes.io/secure-backends: "true" will automatically be set
+  annotations: {}
+  #  kubernetes.io/ingress.class: nginx
+  #  kubernetes.io/tls-acme: true
+
+## The following settings are to configure the frequency of the lifeness and readiness probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 120
+  timeoutSeconds: 20
+  periodSeconds: 30
+  failureThreshold: 6
+  successThreshold: 1
+  commandOverride: []
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  timeoutSeconds: 20
+  periodSeconds: 30
+  failureThreshold: 3
+  successThreshold: 1
+  commandOverride: []
+
+## Prometheus Metrics
+##
+metrics:
+  enabled: true
+  port: 9419
+  plugins: "rabbitmq_prometheus"
+  ## Prometheus pod annotations
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.metrics.port }}"
+
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+    periodSeconds: 30
+    failureThreshold: 6
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    timeoutSeconds: 5
+    periodSeconds: 30
+    failureThreshold: 3
+    successThreshold: 1
+
+  ## Prometheus Service Monitor
+  ## ref: https://github.com/coreos/prometheus-operator
+  ##      https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    honorLabels: false
+    additionalLabels: {}
+
+  ## Custom PrometheusRule to be defined
+  ## The value is evaluated as a template, so, for example, the value can depend on .Release or .Chart
+  ## ref: https://github.com/coreos/prometheus-operator#customresourcedefinitions
+  prometheusRule:
+    enabled: false
+    additionalLabels: {}
+    namespace: ""
+    rules: 
+      ## List of reules, used as template by Helm.
+      ## These are just examples rules inspired from https://awesome-prometheus-alerts.grep.to/rules.html
+      - alert: RabbitmqDown
+        expr: rabbitmq_up{service="{{ template "rabbitmq.fullname" . }}"} == 0
+        for: 5m
+        labels:
+          severity: error
+        annotations:
+          summary: Rabbitmq down (instance {{ "{{ $labels.instance }}" }})
+          description: RabbitMQ node down
+##
+## Init containers parameters:
+## volumePermissions: Change the owner of the persist volume mountpoint to RunAsUser:fsGroup
+##
+volumePermissions:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/minideb
+    tag: buster
+    pullPolicy: Always
+  resources: {}
+
+forceBoot:
+  enabled: false
+extraSecrets:
+#   load-definition:
+#     load_definition.json: |
+#         {
+#           "users": [
+#             {
+#                 "name" : "mindbox-test",
+#                 "password" : "zCw4Ze9vxssTXrJ2WgNRETAsRU",
+#                 "tags" : "administrator"
+
+#             }
+#           ],
+#           "vhosts": [
+#             { "name" : "/" }
+#           ],
+#           "policies": [
+#             {
+#                 "vhost":"/",
+#                 "name":"TTL",
+#                 "pattern":".*",
+#                 "apply-to":"queues",
+#                 "definition":{"message-ttl": 300 },
+#                 "priority":0
+#             },
+#             {
+#                 "vhost":"/",
+#                 "name":"DLX",
+#                 "pattern":".*",
+#                 "apply-to":"queues",
+#                 "definition":{"dead-letter-exchange":"dead_letter"},
+#                 "priority":0
+#             }
+#           ]
+#         }
+
+## Adding optionals volumeMount
+extraVolumeMounts: []
+  # - name: extras
+  #   mountPath: /usr/share/extras
+#   readOnly: true
+
+extraVolumes: []
+  # - name: extras
+#   emptyDir: {}
+
